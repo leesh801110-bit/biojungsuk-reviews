@@ -1,0 +1,45 @@
+name: Sync Kmong review count
+
+on:
+  schedule:
+    - cron: '25 * * * *'   # every hour (best-effort; GitHub may delay)
+  workflow_dispatch:        # allow manual run
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-kmong
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scrape Kmong stats and update index.html
+        run: |
+          set -e
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
+          BODY=$(curl -sL --compressed -A "$UA" "https://kmong.com/gig/397693")
+          COUNT=$(printf '%s' "$BODY" | grep -oE '"reviewCount":[0-9]+' | head -1 | grep -oE '[0-9]+')
+          RAW=$(printf '%s'   "$BODY" | grep -oE '[0-9]+\.[0-9]+,"ratingCount"' | head -1 | grep -oE '^[0-9]+\.[0-9]+')
+          if [ -z "$COUNT" ]; then echo "reviewCount not found — leaving file unchanged"; exit 0; fi
+          [ -z "$RAW" ] && RAW="5.0"
+          SCORE=$(printf '%.1f' "$RAW")
+          echo "Kmong: count=$COUNT rating=$RAW -> score=$SCORE"
+          sed -i -E "s/후기 [0-9]+건/후기 ${COUNT}건/" index.html
+          sed -i -E "s#(bjs-rev__score\">)[0-9.]+#\1${SCORE}#" index.html
+
+      - name: Commit if changed
+        run: |
+          if git diff --quiet; then
+            echo "No change — already in sync."
+            exit 0
+          fi
+          git config user.name  "kmong-sync-bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "chore: sync Kmong review count/rating"
+          git push
