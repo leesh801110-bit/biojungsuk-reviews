@@ -26,8 +26,9 @@ jobs:
           COUNT=$(printf '%s' "$BODY" | grep -oE '"reviewCount":[0-9]+' | head -1 | grep -oE '[0-9]+')
           RAW=$(printf '%s'   "$BODY" | grep -oE '[0-9]+\.[0-9]+,"ratingCount"' | head -1 | grep -oE '^[0-9]+\.[0-9]+')
           if [ -z "$COUNT" ]; then echo "reviewCount not found — leaving file unchanged"; exit 0; fi
-          [ -z "$RAW" ] && RAW="5.0"
-          SCORE=$(printf '%.1f' "$RAW")
+          [ -z "$RAW" ] && RAW="4.9"
+          # truncate, don't round: 4.99 -> 4.9
+          SCORE=$(printf '%s' "$RAW" | grep -oE '^[0-9]+\.[0-9]')
           echo "Kmong: count=$COUNT rating=$RAW -> score=$SCORE"
           sed -i -E "s/후기 [0-9]+건/후기 ${COUNT}건/" index.html
           sed -i -E "s#(bjs-rev__score\">)[0-9.]+#\1${SCORE}#" index.html
