@@ -29,8 +29,12 @@ jobs:
           [ -z "$RAW" ] && RAW="4.9"
           # truncate, don't round: 4.99 -> 4.9
           SCORE=$(printf '%s' "$RAW" | grep -oE '^[0-9]+\.[0-9]')
-          echo "Kmong: count=$COUNT rating=$RAW -> score=$SCORE"
-          sed -i -E "s/후기 [0-9]+건/후기 ${COUNT}건/" index.html
+          # 헤더 숫자 = 크몽 후기 + biojungsuk 홈페이지 자체 후기(SITE).
+          # 홈페이지 후기가 늘면 index.html의 카드와 함께 이 값을 갱신할 것.
+          SITE=2
+          TOTAL=$((COUNT+SITE))
+          echo "Kmong: count=$COUNT rating=$RAW -> score=$SCORE, site=$SITE, total=$TOTAL"
+          sed -i -E "s/후기 [0-9]+건/후기 ${TOTAL}건/" index.html
           sed -i -E "s#(bjs-rev__score\">)[0-9.]+#\1${SCORE}#" index.html
 
       - name: Commit if changed
