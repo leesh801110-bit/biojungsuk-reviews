@@ -1,4 +1,4 @@
-name: Sync Kmong review count
+name: Sync reviews (Kmong + biojungsuk site)
 
 on:
   schedule:
@@ -18,24 +18,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Scrape Kmong stats and update index.html
-        run: |
-          set -e
-          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
-          BODY=$(curl -sL --compressed -A "$UA" "https://kmong.com/gig/397693")
-          COUNT=$(printf '%s' "$BODY" | grep -oE '"reviewCount":[0-9]+' | head -1 | grep -oE '[0-9]+')
-          RAW=$(printf '%s'   "$BODY" | grep -oE '[0-9]+\.[0-9]+,"ratingCount"' | head -1 | grep -oE '^[0-9]+\.[0-9]+')
-          if [ -z "$COUNT" ]; then echo "reviewCount not found — leaving file unchanged"; exit 0; fi
-          [ -z "$RAW" ] && RAW="4.9"
-          # truncate, don't round: 4.99 -> 4.9
-          SCORE=$(printf '%s' "$RAW" | grep -oE '^[0-9]+\.[0-9]')
-          # 헤더 숫자 = 크몽 후기 + biojungsuk 홈페이지 자체 후기(SITE).
-          # 홈페이지 후기가 늘면 index.html의 카드와 함께 이 값을 갱신할 것.
-          SITE=2
-          TOTAL=$((COUNT+SITE))
-          echo "Kmong: count=$COUNT rating=$RAW -> score=$SCORE, site=$SITE, total=$TOTAL"
-          sed -i -E "s/후기 [0-9]+건/후기 ${TOTAL}건/" index.html
-          sed -i -E "s#(bjs-rev__score\">)[0-9.]+#\1${SCORE}#" index.html
+      # 크몽 건수·평점 + biojungsuk 상품 후기(사이트맵 전수)를 index.html에 반영.
+      # 수집 실패 시 이전 값 유지, 검증 실패 시 파일을 쓰지 않는다(sync.mjs 내부 규칙).
+      - name: Sync review data into index.html
+        run: node sync.mjs
 
       - name: Commit if changed
         run: |
@@ -46,5 +32,5 @@ jobs:
           git config user.name  "kmong-sync-bot"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add index.html
-          git commit -m "chore: sync Kmong review count/rating"
+          git commit -m "chore: sync reviews (Kmong count/rating + site review cards)"
           git push
